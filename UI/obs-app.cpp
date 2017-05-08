@@ -78,7 +78,11 @@ string opt_starting_collection;
 string opt_starting_profile;
 string opt_starting_scene;
 
+bool remuxAfterRecord = false;
+string remuxFilename;
+
 // GPU hint exports for AMD/NVIDIA laptops
+// AMD PowerXpress High Performance Flags
 #ifdef _MSC_VER
 extern "C" __declspec(dllexport) DWORD NvOptimusEnablement = 1;
 extern "C" __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
@@ -1501,10 +1505,17 @@ string GenerateTimeDateFilename(const char *extension, bool noSpace)
 }
 
 string GenerateSpecifiedFilename(const char *extension, bool noSpace,
-		const char *format)
+		const char *format, bool autoRemux)
 {
+	if ((strcmp(extension, "mp4") == 0) && autoRemux)
+		extension = "mkv";
+
 	BPtr<char> filename = os_generate_formatted_filename(extension,
 			!noSpace, format);
+
+	remuxFilename = string(filename);
+	remuxAfterRecord = autoRemux;
+
 	return string(filename);
 }
 

@@ -843,6 +843,8 @@ bool SimpleOutput::ConfigureRecording(bool updateReplayBuffer)
 			"RecRBTime");
 	int rbSize = config_get_int(main->Config(), "SimpleOutput",
 			"RecRBSize");
+	bool autoRemux = config_get_bool(main->Config(), "SimpleOutput",
+			"AutoRemux");
 
 	os_dir_t *dir = path && path[0] ? os_opendir(path) : nullptr;
 
@@ -867,7 +869,7 @@ bool SimpleOutput::ConfigureRecording(bool updateReplayBuffer)
 		strPath += "/";
 
 	strPath += GenerateSpecifiedFilename(ffmpegOutput ? "avi" : format,
-			noSpace, filenameFormat);
+			noSpace, filenameFormat, autoRemux);
 	ensure_directory_exists(strPath);
 	if (!overwriteIfExists)
 		FindBestFilename(strPath, noSpace);
@@ -1554,6 +1556,7 @@ bool AdvancedOutput::StartRecording()
 	const char *filenameFormat;
 	bool noSpace = false;
 	bool overwriteIfExists = false;
+	bool autoRemux = false;
 
 	if (!useStreamEncoder) {
 		if (!ffmpegOutput) {
@@ -1581,6 +1584,8 @@ bool AdvancedOutput::StartRecording()
 				ffmpegRecording ?
 				"FFFileNameWithoutSpace" :
 				"RecFileNameWithoutSpace");
+		autoRemux = config_get_bool(main->Config(), "AdvOut",
+				"AutoRemux");
 
 		os_dir_t *dir = path && path[0] ? os_opendir(path) : nullptr;
 
@@ -1605,7 +1610,7 @@ bool AdvancedOutput::StartRecording()
 			strPath += "/";
 
 		strPath += GenerateSpecifiedFilename(recFormat, noSpace,
-							filenameFormat);
+					filenameFormat, autoRemux);
 		ensure_directory_exists(strPath);
 		if (!overwriteIfExists)
 			FindBestFilename(strPath, noSpace);

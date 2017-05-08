@@ -175,6 +175,11 @@ void OBSRemux::Remux()
 			setEnabled(false);
 
 	emit remux();
+
+	if (remuxAfterRecord) {
+		QFile file(ui->sourceFile->text());
+		file.remove();
+	}
 }
 
 void OBSRemux::closeEvent(QCloseEvent *event)

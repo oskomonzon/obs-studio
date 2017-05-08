@@ -37,7 +37,7 @@ std::string CurrentTimeString();
 std::string CurrentDateTimeString();
 std::string GenerateTimeDateFilename(const char *extension, bool noSpace=false);
 std::string GenerateSpecifiedFilename(const char *extension, bool noSpace,
-					const char *format);
+		const char *format, bool autoRemux = false);
 QObject *CreateShortcutFilter();
 
 struct BaseLexer {
@@ -197,6 +197,10 @@ static inline int GetProfilePath(char *path, size_t size, const char *file)
 }
 
 extern bool portable_mode;
+
+extern bool remuxAfterRecord;
+extern std::string remuxFilename;
+
 extern bool opt_start_streaming;
 extern bool opt_start_recording;
 extern bool opt_start_replaybuffer;

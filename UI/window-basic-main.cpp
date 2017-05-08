@@ -1117,6 +1117,8 @@ bool OBSBasic::InitBasicConfigDefaults()
 	config_set_default_int(basicConfig, "SimpleOutput", "RecRBSize", 512);
 	config_set_default_string(basicConfig, "SimpleOutput", "RecRBPrefix",
 			"Replay");
+	config_set_default_bool(basicConfig, "SimpleOutput", "AutoRemux",
+			false);
 
 	config_set_default_bool  (basicConfig, "AdvOut", "ApplyServiceSettings",
 			true);
@@ -1159,6 +1161,8 @@ bool OBSBasic::InitBasicConfigDefaults()
 	config_set_default_bool  (basicConfig, "AdvOut", "RecRB", false);
 	config_set_default_uint  (basicConfig, "AdvOut", "RecRBTime", 20);
 	config_set_default_int   (basicConfig, "AdvOut", "RecRBSize", 512);
+	config_set_default_bool  (basicConfig, "AdvOutput", "AutoRemux",
+			false);
 
 	config_set_default_uint  (basicConfig, "Video", "BaseCX",   cx);
 	config_set_default_uint  (basicConfig, "Video", "BaseCY",   cy);
@@ -4938,6 +4942,23 @@ void OBSBasic::StreamingStop(int code, QString last_error)
 	}
 }
 
+void OBSBasic::AutoRemux()
+{
+	const char *mode = config_get_string(basicConfig, "Output", "Mode");
+	const char *path = strcmp(mode, "Advanced") ?
+	config_get_string(basicConfig, "SimpleOutput", "FilePath") :
+	config_get_string(basicConfig, "AdvOut", "RecFilePath");
+	std::string s(path);
+	s += "/";
+	s += remuxFilename;
+	const QString &str = QString::fromStdString(s);
+
+	OBSRemux *remux = new OBSRemux(path, this);
+	remux->show();
+	remux->inputChanged(str);
+	remux->Remux();
+}
+
 void OBSBasic::StartRecording()
 {
 	if (outputHandler->RecordingActive())
@@ -5035,6 +5056,9 @@ void OBSBasic::RecordingStop(int code)
 
 	if (api)
 		api->on_event(OBS_FRONTEND_EVENT_RECORDING_STOPPED);
+
+	if (remuxAfterRecord)
+		AutoRemux();
 
 	OnDeactivate();
 }

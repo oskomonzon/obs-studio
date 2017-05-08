@@ -325,6 +325,7 @@ OBSBasicSettings::OBSBasicSettings(QWidget *parent)
 	HookWidget(ui->outputMode,           COMBO_CHANGED,  OUTPUTS_CHANGED);
 	HookWidget(ui->streamType,           COMBO_CHANGED,  STREAM1_CHANGED);
 	HookWidget(ui->simpleOutputPath,     EDIT_CHANGED,   OUTPUTS_CHANGED);
+	HookWidget(ui->simpleAutoRemux,      CHECK_CHANGED,  OUTPUTS_CHANGED);
 	HookWidget(ui->simpleNoSpace,        CHECK_CHANGED,  OUTPUTS_CHANGED);
 	HookWidget(ui->simpleOutRecFormat,   COMBO_CHANGED,  OUTPUTS_CHANGED);
 	HookWidget(ui->simpleOutputVBitrate, SCROLL_CHANGED, OUTPUTS_CHANGED);
@@ -352,6 +353,7 @@ OBSBasicSettings::OBSBasicSettings(QWidget *parent)
 	HookWidget(ui->advOutApplyService,   CHECK_CHANGED,  OUTPUTS_CHANGED);
 	HookWidget(ui->advOutRecType,        COMBO_CHANGED,  OUTPUTS_CHANGED);
 	HookWidget(ui->advOutRecPath,        EDIT_CHANGED,   OUTPUTS_CHANGED);
+	HookWidget(ui->advAutoRemux,         CHECK_CHANGED,  OUTPUTS_CHANGED);
 	HookWidget(ui->advOutNoSpace,        CHECK_CHANGED,  OUTPUTS_CHANGED);
 	HookWidget(ui->advOutRecFormat,      COMBO_CHANGED,  OUTPUTS_CHANGED);
 	HookWidget(ui->advOutRecEncoder,     COMBO_CHANGED,  OUTPUTS_CHANGED);
@@ -1469,6 +1471,8 @@ void OBSBasicSettings::LoadSimpleOutputSettings()
 			"FilePath");
 	bool noSpace = config_get_bool(main->Config(), "SimpleOutput",
 			"FileNameWithoutSpace");
+	bool autoRemux = config_get_bool(main->Config(), "SimpleOutput",
+			"AutoRemux");
 	const char *format = config_get_string(main->Config(), "SimpleOutput",
 			"RecFormat");
 	int videoBitrate = config_get_uint(main->Config(), "SimpleOutput",
@@ -1513,6 +1517,7 @@ void OBSBasicSettings::LoadSimpleOutputSettings()
 
 	ui->simpleOutputPath->setText(path);
 	ui->simpleNoSpace->setChecked(noSpace);
+	ui->simpleAutoRemux->setChecked(autoRemux);
 	ui->simpleOutputVBitrate->setValue(videoBitrate);
 
 	int idx = ui->simpleOutRecFormat->findText(format);
@@ -1657,6 +1662,8 @@ void OBSBasicSettings::LoadAdvOutputRecordingSettings()
 			"RecFilePath");
 	bool noSpace = config_get_bool(main->Config(), "AdvOut",
 			"RecFileNameWithoutSpace");
+	bool autoRemux = config_get_bool(main->Config(), "AdvOut",
+			"AutoRemux");
 	bool rescale = config_get_bool(main->Config(), "AdvOut",
 			"RecRescale");
 	const char *rescaleRes = config_get_string(main->Config(), "AdvOut",
@@ -1669,6 +1676,7 @@ void OBSBasicSettings::LoadAdvOutputRecordingSettings()
 	ui->advOutRecType->setCurrentIndex(typeIndex);
 	ui->advOutRecPath->setText(path);
 	ui->advOutNoSpace->setChecked(noSpace);
+	ui->advAutoRemux->setChecked(autoRemux);
 	ui->advOutRecUseRescale->setChecked(rescale);
 	ui->advOutRecRescale->setCurrentText(rescaleRes);
 	ui->advOutMuxCustom->setText(muxCustom);
@@ -3024,6 +3032,7 @@ void OBSBasicSettings::SaveOutputSettings()
 	SaveCombo(ui->simpleOutputABitrate, "SimpleOutput", "ABitrate");
 	SaveEdit(ui->simpleOutputPath, "SimpleOutput", "FilePath");
 	SaveCheckBox(ui->simpleNoSpace, "SimpleOutput", "FileNameWithoutSpace");
+	SaveCheckBox(ui->simpleAutoRemux, "SimpleOutput", "AutoRemux");
 	SaveCombo(ui->simpleOutRecFormat, "SimpleOutput", "RecFormat");
 	SaveCheckBox(ui->simpleOutAdvanced, "SimpleOutput", "UseAdvanced");
 	SaveCheckBox(ui->simpleOutEnforce, "SimpleOutput", "EnforceBitrate");
@@ -3054,6 +3063,7 @@ void OBSBasicSettings::SaveOutputSettings()
 
 	SaveEdit(ui->advOutRecPath, "AdvOut", "RecFilePath");
 	SaveCheckBox(ui->advOutNoSpace, "AdvOut", "RecFileNameWithoutSpace");
+	SaveCheckBox(ui->advAutoRemux, "AdvOut", "AutoRemux");
 	SaveCombo(ui->advOutRecFormat, "AdvOut", "RecFormat");
 	SaveComboData(ui->advOutRecEncoder, "AdvOut", "RecEncoder");
 	SaveCheckBox(ui->advOutRecUseRescale, "AdvOut", "RecRescale");
@@ -3869,6 +3879,12 @@ void OBSBasicSettings::AdvOutRecCheckWarnings()
 		if (!warningMsg.isEmpty())
 			warningMsg += "\n\n";
 		warningMsg += QTStr("OutputWarnings.MP4Recording");
+		ui->advAutoRemux->setText(
+				QTStr("Basic.Settings.Output.AutoRemux") + " " +
+				QTStr("Basic.Settings.Output.AutoRemux.MP4"));
+	} else {
+		ui->advAutoRemux->setText(
+				QTStr("Basic.Settings.Output.AutoRemux"));
 	}
 
 	delete advOutRecWarning;
@@ -4325,6 +4341,12 @@ void OBSBasicSettings::SimpleRecordingEncoderChanged()
 		if (!warning.isEmpty())
 			warning += "\n\n";
 		warning += QTStr("OutputWarnings.MP4Recording");
+		ui->simpleAutoRemux->setText(
+				QTStr("Basic.Settings.Output.AutoRemux") + " " +
+				QTStr("Basic.Settings.Output.AutoRemux.MP4"));
+	} else {
+		ui->simpleAutoRemux->setText(
+				QTStr("Basic.Settings.Output.AutoRemux"));
 	}
 
 	if (warning.isEmpty())
