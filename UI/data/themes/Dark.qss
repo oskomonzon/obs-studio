@@ -636,3 +636,14 @@ QLabel#errorLabel {
     color: rgb(0, 192, 0);
     font-weight: bold;
 }
+
+/* Property tabs */
+
+* [themeID="propertyTabs"]::tab:first {
+    background-color: none;
+    font-weight: bold;
+    border: none;
+    padding: 5px;
+    min-width: 50px;
+    margin: 1px;
+}

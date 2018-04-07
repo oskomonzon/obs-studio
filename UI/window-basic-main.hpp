@@ -227,7 +227,6 @@ private:
 	void 	      OnFirstLoad();
 
 	OBSSceneItem  GetSceneItem(QListWidgetItem *item);
-	OBSSceneItem  GetCurrentSceneItem();
 
 	bool          QueryRemoveSource(obs_source_t *source);
 
@@ -306,8 +305,6 @@ private:
 	void RefreshQuickTransitions();
 	void CreateDefaultQuickTransitions();
 
-	QMenu *CreatePerSceneTransitionMenu();
-
 	QuickTransition *GetQuickTransition(int id);
 	int GetQuickTransitionIdx(int id);
 	QMenu *CreateTransitionMenu(QWidget *parent, QuickTransition *qt);
@@ -373,6 +370,8 @@ private:
 	void ReceivedIntroJson(const QString &text);
 
 	bool NoSourcesConfirmation();
+
+	QMenu *AddBackgroundColorMenu(obs_sceneitem_t *item);
 
 public slots:
 	void DeferSaveBegin();
@@ -447,11 +446,6 @@ private slots:
 	void TransitionFullyStopped();
 	void TriggerQuickTransition(int id);
 
-	void SetDeinterlacingMode();
-	void SetDeinterlacingOrder();
-
-	void SetScaleFilter();
-
 	void IconActivated(QSystemTrayIcon::ActivationReason reason);
 	void SetShowing(bool showing);
 
@@ -502,6 +496,7 @@ private:
 public:
 	OBSSource GetProgramSource();
 	OBSScene GetCurrentScene();
+	OBSSceneItem GetCurrentSceneItem();
 
 	void SysTrayNotify(const QString &text, QSystemTrayIcon::MessageIcon n);
 
@@ -565,9 +560,6 @@ public:
 		}
 	}
 
-	QMenu *AddDeinterlacingMenu(obs_source_t *source);
-	QMenu *AddScaleFilteringMenu(obs_sceneitem_t *item);
-	QMenu *AddBackgroundColorMenu(obs_sceneitem_t *item);
 	void CreateSourcePopupMenu(int idx, bool preview);
 
 	void UpdateTitleBar();
@@ -579,8 +571,10 @@ public:
 	void OpenSavedProjectors();
 
 	void CreateInteractionWindow(obs_source_t *source);
-	void CreatePropertiesWindow(obs_source_t *source);
 	void CreateFiltersWindow(obs_source_t *source);
+
+	OBSSource GetTransitionComboItem(QComboBox *combo, int idx);
+	void CreatePropertiesWindow(obs_source_t *source, PropertiesType type);
 
 protected:
 	virtual void closeEvent(QCloseEvent *event) override;
@@ -631,6 +625,7 @@ private slots:
 	void on_actionSourceProperties_triggered();
 	void on_actionSourceUp_triggered();
 	void on_actionSourceDown_triggered();
+	void on_actionSceneProperties_triggered();
 
 	void on_actionMoveUp_triggered();
 	void on_actionMoveDown_triggered();
@@ -707,9 +702,6 @@ private slots:
 	void SceneNameEdited(QWidget *editor,
 			QAbstractItemDelegate::EndEditHint endHint);
 
-	void OpenSceneFilters();
-	void OpenFilters();
-
 	void EnablePreviewDisplay(bool enable);
 	void TogglePreview();
 
@@ -748,7 +740,6 @@ public:
 	virtual int GetProfilePath(char *path, size_t size, const char *file)
 		const override;
 
-private:
 	std::unique_ptr<Ui::OBSBasic> ui;
 };
 

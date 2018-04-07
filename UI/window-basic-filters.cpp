@@ -36,7 +36,7 @@ using namespace std;
 Q_DECLARE_METATYPE(OBSSource);
 
 OBSBasicFilters::OBSBasicFilters(QWidget *parent, OBSSource source_)
-	: QDialog                      (parent),
+	: QWidget                      (parent),
 	  ui                           (new Ui::OBSBasicFilters),
 	  source                       (source_),
 	  addSignal                    (obs_source_get_signal_handler(source),
@@ -59,7 +59,7 @@ OBSBasicFilters::OBSBasicFilters(QWidget *parent, OBSSource source_)
 	                                OBSBasicFilters::SourceRenamed, this),
 	  noPreviewMargin               (13)
 {
-	main = reinterpret_cast<OBSBasic*>(parent);
+	main = reinterpret_cast<OBSBasic*>(App()->GetMainWindow());
 
 	ui->setupUi(this);
 	UpdateFilters();
@@ -88,16 +88,6 @@ OBSBasicFilters::OBSBasicFilters(QWidget *parent, OBSSource source_)
 			SLOT(EffectFilterNameEdited(QWidget*,
 					QAbstractItemDelegate::EndEditHint)));
 
-	QPushButton *close = ui->buttonBox->button(QDialogButtonBox::Close);
-	connect(close, SIGNAL(clicked()), this, SLOT(close()));
-	close->setDefault(true);
-
-	ui->buttonBox->button(QDialogButtonBox::Reset)->setText(
-			QTStr("Defaults"));
-
-	connect(ui->buttonBox->button(QDialogButtonBox::Reset),
-		SIGNAL(clicked()), this, SLOT(ResetFilters()));
-
 	uint32_t caps = obs_source_get_output_flags(source);
 	bool audio     = (caps & OBS_SOURCE_AUDIO) != 0;
 	bool audioOnly = (caps & OBS_SOURCE_VIDEO) == 0;
@@ -114,27 +104,6 @@ OBSBasicFilters::OBSBasicFilters(QWidget *parent, OBSSource source_)
 
 	if (audioOnly || (audio && !async))
 		ui->asyncLabel->setText(QTStr("Basic.Filters.AudioFilters"));
-
-	auto addDrawCallback = [this] ()
-	{
-		obs_display_add_draw_callback(ui->preview->GetDisplay(),
-				OBSBasicFilters::DrawPreview, this);
-	};
-
-	enum obs_source_type type = obs_source_get_type(source);
-	bool drawable_type = type == OBS_SOURCE_TYPE_INPUT ||
-		type == OBS_SOURCE_TYPE_SCENE;
-
-	if ((caps & OBS_SOURCE_VIDEO) != 0) {
-		ui->rightLayout->setContentsMargins(0, 0, 0, 0);
-		ui->preview->show();
-		if (drawable_type)
-			connect(ui->preview, &OBSQTDisplay::DisplayCreated,
-					addDrawCallback);
-	} else {
-		ui->rightLayout->setContentsMargins(0, noPreviewMargin, 0, 0);
-		ui->preview->hide();
-	}
 }
 
 OBSBasicFilters::~OBSBasicFilters()
@@ -185,15 +154,6 @@ void OBSBasicFilters::UpdatePropertiesView(int row, bool async)
 			"update_properties",
 			OBSBasicFilters::UpdateProperties,
 			this);
-
-	uint32_t caps = obs_source_get_output_flags(filter);
-	if ((caps & OBS_SOURCE_VIDEO)) {
-		ui->rightLayout->setContentsMargins(0, 0, 0, 0);
-		ui->preview->show();
-	} else {
-		ui->rightLayout->setContentsMargins(0, noPreviewMargin, 0, 0);
-		ui->preview->hide();
-	}
 
 	obs_data_release(settings);
 
@@ -473,18 +433,6 @@ void OBSBasicFilters::AddFilterFromAction()
 		return;
 
 	AddNewFilter(QT_TO_UTF8(action->data().toString()));
-}
-
-void OBSBasicFilters::closeEvent(QCloseEvent *event)
-{
-	QDialog::closeEvent(event);
-	if (!event->isAccepted())
-		return;
-
-	obs_display_remove_draw_callback (ui->preview->GetDisplay(),
-		OBSBasicFilters::DrawPreview, this);
-
-	main->SaveProject();
 }
 
 /* OBS Signals */

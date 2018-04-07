@@ -860,3 +860,14 @@ FocusList::item {
 	background: transparent;
 	min-height: 26px;
 }
+
+/* Property tabs */
+
+* [themeID="propertyTabs"]::tab:first {
+	background-color: none;
+	font-weight: bold;
+	border: none;
+	padding: 5px;
+	min-width: 50px;
+	margin: 1px;
+}
