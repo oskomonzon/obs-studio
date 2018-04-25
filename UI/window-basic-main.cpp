@@ -1685,6 +1685,19 @@ void OBSBasic::OBSInit()
 #else
 	OnFirstLoad();
 #endif
+
+	auto addSourceAudioHotkeys = [] (void *data, obs_source_t *source)
+	{
+		OBSBasic *main =
+			reinterpret_cast<OBSBasic*>(App()->GetMainWindow());
+		main->AddMonitorHotkeys(source);
+
+		UNUSED_PARAMETER(data);
+
+		return true;
+	};
+
+	obs_enum_sources(addSourceAudioHotkeys, nullptr);
 }
 
 void OBSBasic::OnFirstLoad()
@@ -4222,6 +4235,8 @@ void OBSBasic::AddSource(const char *id)
 		sourceSelect.exec();
 		if (sourceSelect.newSource && strcmp(id, "group") != 0)
 			CreatePropertiesWindow(sourceSelect.newSource);
+
+		AddMonitorHotkeys(sourceSelect.newSource);
 	}
 }
 
@@ -6649,6 +6664,95 @@ void OBSBasic::on_stats_triggered()
 	statsDlg = new OBSBasicStats(nullptr);
 	statsDlg->show();
 	stats = statsDlg;
+}
+
+void OBSBasic::SetMonitorType(OBSSource source, bool muteChecked,
+		bool monitorChecked)
+{
+	const char *type = nullptr;
+
+	obs_source_set_mute_and_headphones(source, muteChecked, monitorChecked);
+
+	obs_monitoring_type monitorType =
+			obs_source_get_monitoring_type(source);
+
+	if (monitorType == OBS_MONITORING_TYPE_NONE)
+		type = "none";
+	else if (monitorType == OBS_MONITORING_TYPE_MONITOR_ONLY)
+		type = "monitor only";
+	else if (monitorType == OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT)
+		type = "monitor and output";
+
+	blog(LOG_INFO, "User changed audio monitoring for source '%s' to: %s",
+			obs_source_get_name(source), type);
+}
+
+static bool UnmuteMonitor(void *data, obs_hotkey_pair_id id, obs_hotkey_t *key,
+		bool pressed)
+{
+	UNUSED_PARAMETER(id);
+	UNUSED_PARAMETER(key);
+
+	obs_source_t *source = static_cast<obs_source_t*>(data);
+	OBSBasic *main = reinterpret_cast<OBSBasic*>(App()->GetMainWindow());
+
+	obs_monitoring_type monitoring_type =
+			obs_source_get_monitoring_type(source);
+
+	bool monitor;
+
+	if (monitoring_type == OBS_MONITORING_TYPE_NONE)
+		monitor = false;
+	else
+		monitor = true;
+
+	if (!pressed || monitor)
+		return false;
+
+	main->SetMonitorType(source, obs_source_muted(source), true);
+
+	return true;
+}
+
+static bool MuteMonitor(void *data, obs_hotkey_pair_id id, obs_hotkey_t *key,
+		bool pressed)
+{
+	UNUSED_PARAMETER(id);
+	UNUSED_PARAMETER(key);
+
+	obs_source_t *source = static_cast<obs_source_t*>(data);
+	OBSBasic *main = reinterpret_cast<OBSBasic*>(App()->GetMainWindow());
+
+	obs_monitoring_type monitoring_type =
+			obs_source_get_monitoring_type(source);
+
+	bool monitor;
+
+	if (monitoring_type == OBS_MONITORING_TYPE_NONE)
+		monitor = false;
+	else
+		monitor = true;
+
+	if (!pressed || !monitor)
+		return false;
+
+	main->SetMonitorType(source, obs_source_muted(source), false);
+
+	return true;
+}
+
+void OBSBasic::AddMonitorHotkeys(OBSSource source)
+{
+	uint32_t flags = obs_source_get_output_flags(source);
+
+	if ((flags & OBS_SOURCE_AUDIO) == 0)
+		return;
+
+	obs_hotkey_pair_register_source(source,
+			"OBSBasic.MuteMonitor", Str("MuteAudioMonitor"),
+			"OBSBasic.UnmuteMonitor", Str("UnmuteAudioMonitor"),
+			MuteMonitor, UnmuteMonitor,
+			source, source);
 }
 
 ColorSelect::ColorSelect(QWidget *parent)

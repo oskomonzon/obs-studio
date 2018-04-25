@@ -216,6 +216,7 @@ set(obs_HEADERS
 	item-widget-helpers.hpp
 	visibility-checkbox.hpp
 	locked-checkbox.hpp
+	headphone-checkbox.hpp
 	horizontal-scroll-area.hpp
 	expand-checkbox.hpp
 	vertical-scroll-area.hpp

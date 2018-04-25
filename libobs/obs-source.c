@@ -60,6 +60,7 @@ static const char *source_signals[] = {
 	"void show(ptr source)",
 	"void hide(ptr source)",
 	"void mute(ptr source, bool muted)",
+	"void monitor_mute(ptr source, bool muted)",
 	"void push_to_mute_changed(ptr source, bool enabled)",
 	"void push_to_mute_delay(ptr source, int delay)",
 	"void push_to_talk_changed(ptr source, bool enabled)",
@@ -208,7 +209,17 @@ static bool obs_source_hotkey_mute(void *data,
 
 	if (!pressed || obs_source_muted(source)) return false;
 
-	obs_source_set_muted(source, true);
+	enum obs_monitoring_type monitoring_type =
+			obs_source_get_monitoring_type(source);
+
+	bool monitor;
+
+	if (monitoring_type == OBS_MONITORING_TYPE_NONE)
+		monitor = false;
+	else
+		monitor = true;
+
+	obs_source_set_mute_and_headphones(source, true, monitor);
 	return true;
 }
 
@@ -222,7 +233,17 @@ static bool obs_source_hotkey_unmute(void *data,
 
 	if (!pressed || !obs_source_muted(source)) return false;
 
-	obs_source_set_muted(source, false);
+	enum obs_monitoring_type monitoring_type =
+			obs_source_get_monitoring_type(source);
+
+	bool monitor;
+
+	if (monitoring_type == OBS_MONITORING_TYPE_NONE)
+		monitor = false;
+	else
+		monitor = true;
+
+	obs_source_set_mute_and_headphones(source, false, monitor);
 	return true;
 }
 
@@ -1318,7 +1339,9 @@ static void source_output_audio_data(obs_source_t *source,
 
 	pthread_mutex_unlock(&source->audio_buf_mutex);
 
-	source_signal_audio_data(source, data, source_muted(source, os_time));
+	source_signal_audio_data(source, data, source_muted(source, os_time) &&
+			source->monitoring_type !=
+			OBS_MONITORING_TYPE_MONITOR_ONLY);
 }
 
 enum convert_type {
@@ -4164,4 +4187,37 @@ EXPORT void obs_enable_source_type(const char *name, bool enable)
 		info->output_flags &= ~OBS_SOURCE_CAP_DISABLED;
 	else
 		info->output_flags |= OBS_SOURCE_CAP_DISABLED;
+}
+
+/* Sets values of mute and headphone checkboxed */
+void obs_source_set_mute_and_headphones(obs_source_t *source, bool mute_checked,
+		bool headphone_checked)
+{
+	if (!obs_ptr_valid(source, "obs_source_set_mute_and_headphones"))
+		return;
+
+	struct calldata data;
+	uint8_t stack[128];
+
+	calldata_init_fixed(&data, stack, sizeof(stack));
+	calldata_set_ptr(&data, "source", source);
+	calldata_set_bool(&data, "monitor_muted", headphone_checked);
+
+	signal_handler_signal(source->context.signals, "monitor_mute", &data);
+
+	if (!headphone_checked) {
+		obs_source_set_monitoring_type(source,
+				OBS_MONITORING_TYPE_NONE);
+		obs_source_set_muted(source, mute_checked);
+	} else {  // monitoring on
+		if (mute_checked) {
+			obs_source_set_monitoring_type(source,
+					OBS_MONITORING_TYPE_MONITOR_ONLY);
+			obs_source_set_muted(source, true);
+		} else {
+			obs_source_set_monitoring_type(source,
+					OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
+			obs_source_set_muted(source, false);
+		}
+	}
 }

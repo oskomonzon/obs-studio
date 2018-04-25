@@ -499,6 +499,8 @@ private:
 
 	static void HotkeyTriggered(void *data, obs_hotkey_id id, bool pressed);
 
+	void AutoRemux();
+
 public:
 	OBSSource GetProgramSource();
 	OBSScene GetCurrentScene();
@@ -581,6 +583,10 @@ public:
 	void CreateInteractionWindow(obs_source_t *source);
 	void CreatePropertiesWindow(obs_source_t *source);
 	void CreateFiltersWindow(obs_source_t *source);
+
+	void SetMonitorType(OBSSource source, bool muteChecked,
+			bool monitorChecked);
+	void AddMonitorHotkeys(OBSSource source);
 
 protected:
 	virtual void closeEvent(QCloseEvent *event) override;

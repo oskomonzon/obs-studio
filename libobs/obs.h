@@ -2003,6 +2003,9 @@ static inline void obs_source_frame_destroy(struct obs_source_frame *frame)
 EXPORT void obs_source_frame_copy(struct obs_source_frame *dst,
 		const struct obs_source_frame *src);
 
+EXPORT void obs_source_set_mute_and_headphones(obs_source_t *source,
+		bool mute_checked, bool headphone_checked);
+
 #ifdef __cplusplus
 }
 #endif
