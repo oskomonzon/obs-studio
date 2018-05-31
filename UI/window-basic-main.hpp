@@ -29,6 +29,7 @@
 #include "window-basic-transform.hpp"
 #include "window-basic-adv-audio.hpp"
 #include "window-basic-filters.hpp"
+#include "window-basic-media-controls.hpp"
 #include "window-projector.hpp"
 
 #include <obs-frontend-internal.hpp>
@@ -44,6 +45,7 @@ class QListWidgetItem;
 class VolControl;
 class QNetworkReply;
 class OBSBasicStats;
+class OBSBasicMediaControls;
 
 #include "ui_OBSBasic.h"
 
@@ -147,6 +149,7 @@ private:
 	QPointer<OBSBasicTransform> transformWindow;
 	QPointer<OBSBasicAdvAudio> advAudioWindow;
 	QPointer<OBSBasicFilters> filters;
+	QPointer<OBSBasicMediaControls> mediaControlsWindow;
 
 	QPointer<QTimer>    cpuUsageTimer;
 	os_cpu_usage_info_t *cpuUsageInfo = nullptr;
@@ -610,6 +613,7 @@ private slots:
 	void on_actionFitToScreen_triggered();
 	void on_actionStretchToScreen_triggered();
 	void on_actionCenterToScreen_triggered();
+	void on_actionMediaControls_triggered();
 
 	void on_scenes_currentItemChanged(QListWidgetItem *current,
 			QListWidgetItem *prev);

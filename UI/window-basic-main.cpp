@@ -2070,6 +2070,9 @@ OBSBasic::~OBSBasic()
 	if (advAudioWindow)
 		delete advAudioWindow;
 
+	if (mediaControlsWindow)
+		delete mediaControlsWindow;
+
 	obs_display_remove_draw_callback(ui->preview->GetDisplay(),
 			OBSBasic::RenderMain, this);
 
@@ -4081,8 +4084,22 @@ void OBSBasic::CreateSourcePopupMenu(int idx, bool preview)
 		action->setEnabled(obs_source_get_output_flags(source) &
 				OBS_SOURCE_INTERACTION);
 
+		QAction *mediaControls = popup.addAction(
+				QTStr("MediaControls"), this,
+				SLOT(on_actionMediaControls_triggered()));
+
+		OBSSource sourceMedia =
+				obs_sceneitem_get_source(GetCurrentSceneItem());
+		const char *idMedia = obs_source_get_id(sourceMedia);
+
+		if (strcmp(idMedia, "vlc_source") == 0)
+			mediaControls->setEnabled(true);
+		else
+			mediaControls->setEnabled(false);
+
 		popup.addAction(QTStr("Filters"), this,
 				SLOT(OpenFilters()));
+		popup.addAction(mediaControls);
 		popup.addAction(QTStr("Properties"), this,
 				SLOT(on_actionSourceProperties_triggered()));
 
@@ -5373,6 +5390,21 @@ void OBSBasic::on_actionEditTransform_triggered()
 	transformWindow->show();
 	transformWindow->setAttribute(Qt::WA_DeleteOnClose, true);
 }
+
+void OBSBasic::on_actionMediaControls_triggered()
+{
+	if (mediaControlsWindow)
+		mediaControlsWindow->close();
+
+	OBSSource source = obs_sceneitem_get_source(GetCurrentSceneItem());
+
+	if (source)
+		mediaControlsWindow = new OBSBasicMediaControls(this, source);
+
+	mediaControlsWindow->show();
+	mediaControlsWindow->setAttribute(Qt::WA_DeleteOnClose, true);
+}
+
 
 static obs_transform_info copiedTransformInfo;
 static obs_sceneitem_crop copiedCropInfo;

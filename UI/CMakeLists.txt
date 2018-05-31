@@ -151,6 +151,7 @@ set(obs_SOURCES
 	window-basic-adv-audio.cpp
 	window-basic-transform.cpp
 	window-basic-preview.cpp
+	window-basic-media-controls.cpp
 	window-namedialog.cpp
 	window-log-reply.cpp
 	window-projector.cpp
@@ -199,6 +200,7 @@ set(obs_HEADERS
 	window-basic-adv-audio.hpp
 	window-basic-transform.hpp
 	window-basic-preview.hpp
+	window-basic-media-controls.hpp
 	window-namedialog.hpp
 	window-log-reply.hpp
 	window-projector.hpp

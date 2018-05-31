@@ -115,3 +115,29 @@ QLabel#errorLabel {
     color: rgb(0, 128, 0);
     font-weight: bold;
 }
+
+/* Media icons */
+
+* [themeID="playIcon"] {
+    qproperty-icon: url(:res/images/media_play.png);
+}
+
+* [themeID="pauseIcon"] {
+    qproperty-icon: url(:/res/images/media_pause.png);
+}
+
+* [themeID="restartIcon"] {
+    qproperty-icon: url(:/res/images/media_restart.png);
+}
+
+* [themeID="stopIcon"] {
+    qproperty-icon: url(:/res/images/media_stop.png);
+}
+
+* [themeID="nextIcon"] {
+    qproperty-icon: url(:/res/images/media_next.png);
+}
+
+* [themeID="previousIcon"] {
+    qproperty-icon: url(:/res/images/media_previous.png);
+}
