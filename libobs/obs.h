@@ -1335,7 +1335,8 @@ EXPORT bool obs_scene_reorder_items2(obs_scene_t *scene,
 		size_t item_order_size);
 
 /** Adds/creates a new scene item for a source */
-EXPORT obs_sceneitem_t *obs_scene_add(obs_scene_t *scene, obs_source_t *source);
+EXPORT obs_sceneitem_t *obs_scene_add(obs_scene_t *scene, obs_source_t *source,
+		bool is_dsk);
 
 typedef void (*obs_scene_atomic_update_func)(void *, obs_scene_t *scene);
 EXPORT void obs_scene_atomic_update(obs_scene_t *scene,

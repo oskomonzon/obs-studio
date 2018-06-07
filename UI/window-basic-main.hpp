@@ -482,6 +482,8 @@ private:
 
 	static void HotkeyTriggered(void *data, obs_hotkey_id id, bool pressed);
 
+	QString currentDSKScene;
+
 public:
 	OBSSource GetProgramSource();
 	OBSScene GetCurrentScene();
@@ -709,6 +711,10 @@ private slots:
 	void DeferredLoad(const QString &file, int requeueCount);
 
 	void StackedMixerAreaContextMenuRequested();
+
+	void CreateDownstreamKeyer();
+	void ResetDownstreamKeyer();
+	void ExcludeDownstreamKeyer(bool exclude);
 
 public slots:
 	void on_actionResetTransform_triggered();

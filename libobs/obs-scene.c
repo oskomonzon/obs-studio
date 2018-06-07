@@ -659,7 +659,7 @@ static void scene_load_item(struct obs_scene *scene, obs_data_t *item_data)
 		}
 	}
 
-	item = obs_scene_add(scene, source);
+	item = obs_scene_add(scene, source, false);
 	if (!item) {
 		blog(LOG_WARNING, "[scene_load_item] Could not add source '%s' "
 		                  "to scene '%s'!",
@@ -1225,7 +1225,7 @@ obs_scene_t *obs_scene_duplicate(obs_scene_t *scene, const char *name,
 
 		if (source) {
 			struct obs_scene_item *new_item =
-				obs_scene_add(new_scene, source);
+				obs_scene_add(new_scene, source, false);
 
 			if (!new_item) {
 				obs_source_release(source);
@@ -1548,10 +1548,23 @@ static obs_sceneitem_t *obs_scene_add_internal(obs_scene_t *scene,
 	return item;
 }
 
-obs_sceneitem_t *obs_scene_add(obs_scene_t *scene, obs_source_t *source)
+obs_sceneitem_t *obs_scene_add(obs_scene_t *scene, obs_source_t *source,
+		bool is_dsk)
 {
-	obs_sceneitem_t *item = obs_scene_add_internal(scene, source, NULL,
-			false);
+	obs_sceneitem_t *item;
+
+	if (!is_dsk)
+		item = obs_scene_add_internal(scene, source, scene->first_item,
+				false);
+	else
+		item = obs_scene_add_internal(scene, source, NULL, false);
+
+	obs_data_t *data = obs_sceneitem_get_private_settings(item);
+	obs_data_set_default_bool(data, "is_dsk", false);
+	bool dsk = obs_data_get_bool(data, "is_dsk");
+	obs_data_set_bool(data, "is_dsk", dsk);
+	obs_data_release(data);
+
 	struct calldata params;
 	uint8_t stack[128];
 

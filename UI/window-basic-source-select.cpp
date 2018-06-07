@@ -89,7 +89,7 @@ static void AddSource(void *_data, obs_scene_t *scene)
 	AddSourceData *data = (AddSourceData *)_data;
 	obs_sceneitem_t *sceneitem;
 
-	sceneitem = obs_scene_add(scene, data->source);
+	sceneitem = obs_scene_add(scene, data->source, false);
 	obs_sceneitem_set_visible(sceneitem, data->visible);
 }
 

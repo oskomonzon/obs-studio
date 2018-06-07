@@ -130,12 +130,63 @@ static void AddExtraModulePaths()
 #endif
 }
 
+struct AddSourceData {
+	obs_source_t *source;
+};
+
+static void AddDSKSource(void *_data, obs_scene_t *scene)
+{
+	AddSourceData *data = (AddSourceData *)_data;
+	obs_sceneitem_t *sceneItem = obs_scene_add(scene, data->source, true);
+
+	obs_data_t *settings = obs_sceneitem_get_private_settings(sceneItem);
+	obs_data_set_bool(settings, "is_dsk", true);
+	obs_data_release(settings);
+
+	obs_sceneitem_set_locked(sceneItem, true);
+}
+
+static void AddDSKScene(obs_scene_t *scene, const char *name)
+{
+	if (!scene)
+		return;
+
+	obs_source_t *source = obs_get_source_by_name(name);
+
+	if (source) {
+		AddSourceData data;
+		data.source = source;
+
+		obs_enter_graphics();
+		obs_scene_atomic_update(scene, AddDSKSource, &data);
+		obs_leave_graphics();
+
+		obs_source_release(source);
+	}
+}
+
+static bool ExcludeDSKScene(obs_source_t *source)
+{
+	if (!source)
+		return false;
+
+	obs_data_t *privSettingsSource =
+			obs_source_get_private_settings(source);
+	bool exclude = obs_data_get_bool(
+			privSettingsSource, "dsk_scene_exclude");
+	obs_data_release(privSettingsSource);
+
+	return exclude;
+}
+
 extern obs_frontend_callbacks *InitializeAPIInterface(OBSBasic *main);
 
 OBSBasic::OBSBasic(QWidget *parent)
 	: OBSMainWindow  (parent),
 	  ui             (new Ui::OBSBasic)
 {
+	currentDSKScene = "";
+
 	setAttribute(Qt::WA_NativeWindow);
 
 	setAcceptDrops(true);
@@ -494,6 +545,8 @@ void OBSBasic::Save(const char *file)
 	obs_data_set_double(saveData, "scaling_off_y",
 			ui->preview->GetScrollY());
 
+	obs_data_set_string(saveData, "dsk_scene", QT_TO_UTF8(currentDSKScene));
+
 	if (api) {
 		obs_data_t *moduleObj = obs_data_create();
 		api->on_save(moduleObj);
@@ -774,6 +827,8 @@ void OBSBasic::Load(const char *file)
 
 	ui->transitionDuration->setValue(newDuration);
 	SetTransition(curTransition);
+
+	currentDSKScene = QT_UTF8(obs_data_get_string(data, "dsk_scene"));
 
 retryScene:
 	curScene = obs_get_source_by_name(sceneName);
@@ -2138,6 +2193,9 @@ void OBSBasic::AddScene(OBSSource source)
 		OBSProjector::UpdateMultiviewProjectors();
 	}
 
+	if (currentDSKScene != "")
+		AddDSKScene(scene, QT_TO_UTF8(currentDSKScene));
+
 	if (api)
 		api->on_event(OBS_FRONTEND_EVENT_SCENE_LIST_CHANGED);
 }
@@ -2264,8 +2322,13 @@ void OBSBasic::RenameSources(OBSSource source, QString newName,
 	SaveProject();
 
 	obs_scene_t *scene = obs_scene_from_source(source);
-	if (scene)
-		OBSProjector::UpdateMultiviewProjectors();
+	if (!scene)
+		return;
+
+	OBSProjector::UpdateMultiviewProjectors();
+
+	if (prevName == currentDSKScene)
+		currentDSKScene = newName;
 }
 
 void OBSBasic::SelectSceneItem(OBSScene scene, OBSSceneItem item, bool select)
@@ -3514,13 +3577,28 @@ void OBSBasic::on_scenes_customContextMenuRequested(const QPoint &pos)
 {
 	QListWidgetItem *item = ui->scenes->itemAt(pos);
 	QPointer<QMenu> sceneProjectorMenu;
+	QPointer<QAction> dskExcludeAction;
 
 	QMenu popup(this);
 	QMenu order(QTStr("Basic.MainMenu.Edit.Order"), this);
 	popup.addAction(QTStr("Add"),
 			this, SLOT(on_actionAddScene_triggered()));
 
+	dskExcludeAction = new QAction(QTStr("DownstreamKeyerExclude"), this);
+
+	dskExcludeAction->setCheckable(true);
+	dskExcludeAction->setChecked(ExcludeDSKScene(GetCurrentSceneSource()));
+
+	connect(dskExcludeAction, SIGNAL(toggled(bool)), this,
+			SLOT(ExcludeDownstreamKeyer(bool)));
+
 	if (item) {
+		popup.addSeparator();
+		popup.addAction(QTStr("DownstreamKeyerScene"),
+				this, SLOT(CreateDownstreamKeyer()));
+		popup.addAction(dskExcludeAction);
+		popup.addAction(QTStr("DownstreamKeyerReset"),
+				this, SLOT(ResetDownstreamKeyer()));
 		popup.addSeparator();
 		popup.addAction(QTStr("Duplicate"),
 				this, SLOT(DuplicateSelectedScene()));
@@ -4145,6 +4223,12 @@ void OBSBasic::on_actionSourceProperties_triggered()
 
 void OBSBasic::on_actionSourceUp_triggered()
 {
+	QModelIndexList selectedItems =
+			ui->sources->selectionModel()->selectedIndexes();
+
+	if (selectedItems[0].row() == 0)
+		return;
+
 	OBSSceneItem item = GetCurrentSceneItem();
 	obs_sceneitem_set_order(item, OBS_ORDER_MOVE_UP);
 }
@@ -6134,4 +6218,93 @@ void OBSBasic::on_stats_triggered()
 	statsDlg = new OBSBasicStats(nullptr);
 	statsDlg->show();
 	stats = statsDlg;
+}
+
+static bool DeleteDSKItems(obs_scene_t *scene, obs_sceneitem_t *item,
+		void *param)
+{
+	if (!item)
+		return true;
+
+	obs_data_t *privSettings =
+			obs_sceneitem_get_private_settings(item);
+	bool dsk = obs_data_get_bool(privSettings, "is_dsk");
+	obs_data_release(privSettings);
+
+	if (dsk)
+		obs_sceneitem_remove(item);
+
+	UNUSED_PARAMETER(scene);
+	UNUSED_PARAMETER(param);
+	return true;
+}
+
+void OBSBasic::CreateDownstreamKeyer()
+{
+	ResetDownstreamKeyer();
+
+	OBSScene scene = GetCurrentScene();
+	obs_source_t *source = obs_scene_get_source(scene);
+
+	if (!source)
+		return;
+
+	QString dskName = QT_UTF8(obs_source_get_name(source));
+
+	currentDSKScene = dskName;
+
+	for (int i = 0; i < ui->scenes->count(); i++) {
+		QListWidgetItem *item = ui->scenes->item(i);
+		OBSScene itemScene = GetOBSRef<OBSScene>(item);
+		obs_source_t *itemSource = obs_scene_get_source(itemScene);
+
+		QString name = QT_UTF8(obs_source_get_name(itemSource));
+
+		if ((name == dskName) || ExcludeDSKScene(itemSource))
+			continue;
+
+		AddDSKScene(itemScene, QT_TO_UTF8(currentDSKScene));
+	}
+}
+
+void OBSBasic::ResetDownstreamKeyer()
+{
+	if (currentDSKScene == "")
+		return;
+
+	for (int i = 0; i < ui->scenes->count(); i++) {
+		QListWidgetItem *item = ui->scenes->item(i);
+		OBSScene itemScene = GetOBSRef<OBSScene>(item);
+		obs_source_t *itemSource = obs_scene_get_source(itemScene);
+
+		QString name = QT_UTF8(obs_source_get_name(itemSource));
+
+		if ((name == currentDSKScene) || ExcludeDSKScene(itemSource))
+			continue;
+
+		obs_scene_enum_items(itemScene, DeleteDSKItems, nullptr);
+	}
+
+	currentDSKScene = "";
+}
+
+void OBSBasic::ExcludeDownstreamKeyer(bool exclude)
+{
+	OBSScene scene = GetCurrentScene();
+	obs_source_t *source = obs_scene_get_source(scene);
+
+	if (!source)
+		return;
+
+	obs_data_t *privSettings = obs_source_get_private_settings(source);
+	obs_data_set_bool(privSettings, "dsk_scene_exclude", exclude);
+	obs_data_release(privSettings);
+
+	if (currentDSKScene == "")
+		return;
+
+	if (exclude)
+		obs_scene_enum_items(scene, DeleteDSKItems, nullptr);
+	else
+		AddDSKScene(scene, QT_TO_UTF8(currentDSKScene));
 }

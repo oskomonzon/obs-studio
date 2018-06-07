@@ -28,6 +28,16 @@ static inline OBSScene GetCurrentScene()
 	return main->GetCurrentScene();
 }
 
+static bool IsDSK(obs_sceneitem_t *sceneItem)
+{
+	obs_data_t *priv_settings =
+			obs_sceneitem_get_private_settings(sceneItem);
+	bool dsk = obs_data_get_bool(priv_settings, "is_dsk");
+	obs_data_release(priv_settings);
+
+	return dsk;
+}
+
 /* ========================================================================= */
 
 SourceTreeItem::SourceTreeItem(SourceTree *tree_, OBSSceneItem sceneitem_)
@@ -411,6 +421,9 @@ void SourceTreeModel::Clear()
 
 static bool enumItem(obs_scene_t*, obs_sceneitem_t *item, void *ptr)
 {
+	if (IsDSK(item))
+		return true;
+
 	QVector<OBSSceneItem> &items =
 		*reinterpret_cast<QVector<OBSSceneItem>*>(ptr);
 
