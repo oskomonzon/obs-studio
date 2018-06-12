@@ -2065,6 +2065,45 @@ void OBSBasic::CreateFiltersWindow(obs_source_t *source)
 	filters->setAttribute(Qt::WA_DeleteOnClose, true);
 }
 
+static bool ShowSource(void *data, obs_hotkey_pair_id id, obs_hotkey_t *key,
+		bool pressed)
+{
+	UNUSED_PARAMETER(id);
+	UNUSED_PARAMETER(key);
+
+	obs_source_t *source = static_cast<obs_source_t*>(data);
+
+	if (!pressed || obs_source_enabled(source) || !source)
+		return false;
+
+	obs_source_set_enabled(source, true);
+	return true;
+}
+
+static bool HideSource(void *data, obs_hotkey_pair_id id, obs_hotkey_t *key,
+		bool pressed)
+{
+	UNUSED_PARAMETER(id);
+	UNUSED_PARAMETER(key);
+
+	obs_source_t *source = static_cast<obs_source_t*>(data);
+
+	if (!pressed || !obs_source_enabled(source) || !source)
+		return false;
+
+	obs_source_set_enabled(source, false);
+	return true;
+}
+
+void OBSBasic::AddFilterHotkeys(OBSSource source)
+{
+	obs_hotkey_pair_register_source(source,
+			"OBSBasic.Enabled", Str("Enable"),
+			"OBSBasic.Disable", Str("Disable"),
+			ShowSource, HideSource,
+			source, source);
+}
+
 /* Qt callbacks for invokeMethod */
 
 void OBSBasic::AddScene(OBSSource source)
@@ -2090,6 +2129,12 @@ void OBSBasic::AddScene(OBSSource source)
 			main->SetCurrentScene(source);
 		obs_source_release(source);
 	}, static_cast<obs_source_t*>(source));
+
+	obs_hotkey_pair_register_source(source,
+			"OBSBasic.Show", Str("Show"),
+			"OBSBasic.Hide", Str("Hide"),
+			ShowSource, HideSource,
+			source, source);
 
 	signal_handler_t *handler = obs_source_get_signal_handler(source);
 

@@ -208,6 +208,7 @@ void OBSBasicFilters::AddFilter(OBSSource filter)
 	list->addItem(item);
 	list->setCurrentItem(item);
 	SetupVisibilityItem(list, item, filter);
+	main->AddFilterHotkeys(filter);
 }
 
 void OBSBasicFilters::RemoveFilter(OBSSource filter)
