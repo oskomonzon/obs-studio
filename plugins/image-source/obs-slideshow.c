@@ -1,4 +1,5 @@
 #include <obs-module.h>
+#include <obs-frontend-api.h>
 #include <util/threading.h>
 #include <util/platform.h>
 #include <util/darray.h>
@@ -26,11 +27,6 @@
 #define S_MODE_AUTO                    "mode_auto"
 #define S_MODE_MANUAL                  "mode_manual"
 
-#define TR_CUT                         "cut"
-#define TR_FADE                        "fade"
-#define TR_SWIPE                       "swipe"
-#define TR_SLIDE                       "slide"
-
 #define T_(text) obs_module_text("SlideShow." text)
 #define T_TR_SPEED                     T_("TransitionSpeed")
 #define T_CUSTOM_SIZE                  T_("CustomSize")
@@ -48,12 +44,6 @@
 #define T_MODE                         T_("SlideMode")
 #define T_MODE_AUTO                    T_("SlideMode.Auto")
 #define T_MODE_MANUAL                  T_("SlideMode.Manual")
-
-#define T_TR_(text) obs_module_text("SlideShow.Transition." text)
-#define T_TR_CUT                       T_TR_("Cut")
-#define T_TR_FADE                      T_TR_("Fade")
-#define T_TR_SWIPE                     T_TR_("Swipe")
-#define T_TR_SLIDE                     T_TR_("Slide")
 
 /* ------------------------------------------------------------------------- */
 
@@ -283,21 +273,19 @@ static void ss_update(void *data, obs_data_t *settings)
 	ss->manual = (astrcmpi(mode, S_MODE_MANUAL) == 0);
 
 	tr_name = obs_data_get_string(settings, S_TRANSITION);
-	if (astrcmpi(tr_name, TR_CUT) == 0)
-		tr_name = "cut_transition";
-	else if (astrcmpi(tr_name, TR_SWIPE) == 0)
-		tr_name = "swipe_transition";
-	else if (astrcmpi(tr_name, TR_SLIDE) == 0)
-		tr_name = "slide_transition";
-	else
-		tr_name = "fade_transition";
+	obs_source_t *tr = obs_frontend_find_transition(tr_name);
 
 	ss->randomize = obs_data_get_bool(settings, S_RANDOMIZE);
 	ss->loop = obs_data_get_bool(settings, S_LOOP);
 	ss->hide = obs_data_get_bool(settings, S_HIDE);
 
-	if (!ss->tr_name || strcmp(tr_name, ss->tr_name) != 0)
-		new_tr = obs_source_create_private(tr_name, NULL, NULL);
+	if (!tr)
+		new_tr = obs_source_create_private("cut_transition",
+				NULL, NULL);
+	else
+		new_tr = obs_source_duplicate(tr, tr_name, true);
+
+	obs_source_release(tr);
 
 	new_duration = (uint32_t)obs_data_get_int(settings, S_SLIDE_TIME);
 	new_speed = (uint32_t)obs_data_get_int(settings, S_TR_SPEED);
@@ -834,10 +822,18 @@ static obs_properties_t *ss_properties(void *data)
 
 	p = obs_properties_add_list(ppts, S_TRANSITION, T_TRANSITION,
 			OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
-	obs_property_list_add_string(p, T_TR_CUT, TR_CUT);
-	obs_property_list_add_string(p, T_TR_FADE, TR_FADE);
-	obs_property_list_add_string(p, T_TR_SWIPE, TR_SWIPE);
-	obs_property_list_add_string(p, T_TR_SLIDE, TR_SLIDE);
+
+	struct obs_frontend_source_list list = {0};
+	obs_frontend_get_transitions(&list);
+
+	for (size_t i = 0; i < list.sources.num; i++) {
+		obs_source_t *source = list.sources.array[i];
+		const char *name = obs_source_get_name(source);
+
+		obs_property_list_add_string(p, name, name);
+	}
+
+	obs_frontend_source_list_free(&list);
 
 	obs_properties_add_int(ppts, S_SLIDE_TIME, T_SLIDE_TIME,
 			50, 3600000, 50);

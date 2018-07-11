@@ -14,6 +14,7 @@ add_library(image-source MODULE
 	${image-source_SOURCES})
 target_link_libraries(image-source
 	libobs
+	obs-frontend-api
 	${image-source_PLATFORM_DEPS})
 
 install_obs_plugin_with_data(image-source data)

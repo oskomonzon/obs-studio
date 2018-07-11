@@ -65,6 +65,8 @@ if(WIN32 OR APPLE)
 	endif()
 endif()
 
+include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/UI/obs-frontend-api")
+
 add_subdirectory(image-source)
 add_subdirectory(obs-x264)
 add_subdirectory(obs-libfdk)
