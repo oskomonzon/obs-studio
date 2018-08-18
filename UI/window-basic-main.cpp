@@ -2098,6 +2098,9 @@ OBSBasic::~OBSBasic()
 	if (advAudioWindow)
 		delete advAudioWindow;
 
+	if (about)
+		delete about;
+
 	obs_display_remove_draw_callback(ui->preview->GetDisplay(),
 			OBSBasic::RenderMain, this);
 
@@ -6645,6 +6648,17 @@ void OBSBasic::on_stats_triggered()
 	statsDlg = new OBSBasicStats(nullptr);
 	statsDlg->show();
 	stats = statsDlg;
+}
+
+void OBSBasic::on_actionShowAbout_triggered()
+{
+	if (about)
+		about->close();
+
+	about = new OBSAbout(this);
+	about->show();
+
+	about->setAttribute(Qt::WA_DeleteOnClose, true);
 }
 
 ColorSelect::ColorSelect(QWidget *parent)

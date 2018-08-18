@@ -154,3 +154,5 @@ else()
 endif()
 
 include(CopyMSVCBins)
+
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/AUTHORS ${CMAKE_INSTALL_PREFIX}/data/obs-studio/authors/AUTHORS COPYONLY)
