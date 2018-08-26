@@ -37,7 +37,7 @@
 #define T_CUSTOM_SIZE_AUTO             T_("CustomSize.Auto")
 #define T_SLIDE_TIME                   T_("SlideTime")
 #define T_TRANSITION                   T_("Transition")
-#define T_RANDOMIZE                    T_("Randomize")
+#define T_SHUFFLE                      T_("Shuffle")
 #define T_LOOP                         T_("Loop")
 #define T_HIDE                         T_("HideWhenDone")
 #define T_FILES                        T_("Files")
@@ -71,7 +71,7 @@ enum behavior {
 struct slideshow {
 	obs_source_t *source;
 
-	bool randomize;
+	bool shuffle;
 	bool loop;
 	bool restart_on_activate;
 	bool pause_on_deactivate;
@@ -94,6 +94,7 @@ struct slideshow {
 
 	pthread_mutex_t mutex;
 	DARRAY(struct image_file_data) files;
+	DARRAY(char*) paths;
 
 	enum behavior behavior;
 
@@ -162,9 +163,15 @@ static void free_files(struct darray *array)
 	da_free(files);
 }
 
-static inline size_t random_file(struct slideshow *ss)
+static void free_paths(struct darray *array)
 {
-	return (size_t)rand() % ss->files.num;
+	DARRAY(char*) paths;
+	paths.da = *array;
+
+	for (size_t i = 0; i < paths.num; i++)
+		bfree(paths.array[i]);
+
+	da_free(paths);
 }
 
 /* ------------------------------------------------------------------------- */
@@ -208,6 +215,46 @@ static void add_file(struct slideshow *ss, struct darray *array,
 	*array = new_files.da;
 }
 
+static void clear_buffer(struct slideshow *ss, bool next)
+{
+	if (ss->paths.num < 5 || !ss->paths.num || !ss->files.num)
+		return;
+
+	if (next) {
+		bfree(ss->files.array[0].path);
+		obs_source_release(ss->files.array[0].source);
+		da_erase(ss->files, 0);
+	} else {
+		bfree(ss->files.array[ss->files.num - 1].path);
+		obs_source_release(ss->files.array[ss->files.num - 1].source);
+		da_pop_back(ss->files);
+	}
+
+	size_t index;
+
+	if (next)
+		index = (ss->cur_item + 3) % ss->paths.num;
+	else
+		index = (ss->cur_item - 3) % ss->paths.num;
+
+	uint32_t cx, cy;
+	add_file(ss, &ss->files.da, ss->paths.array[index], &cx, &cy);
+
+	UNUSED_PARAMETER(cx);
+	UNUSED_PARAMETER(cy);
+}
+
+static void add_path(struct darray *array, const char *path)
+{
+	DARRAY(char*) new_paths;
+	new_paths.da = *array;
+
+	const char *new_path = bstrdup(path);
+	da_push_back(new_paths, &new_path);
+
+	*array = new_paths.da;
+}
+
 static bool valid_extension(const char *ext)
 {
 	if (!ext)
@@ -222,7 +269,7 @@ static bool valid_extension(const char *ext)
 
 static inline bool item_valid(struct slideshow *ss)
 {
-	return ss->files.num && ss->cur_item < ss->files.num;
+	return ss->files.num && ss->paths.num && ss->cur_item < ss->paths.num;
 }
 
 static void do_transition(void *data, bool to_null)
@@ -230,27 +277,39 @@ static void do_transition(void *data, bool to_null)
 	struct slideshow *ss = data;
 	bool valid = item_valid(ss);
 
-	if (valid && ss->use_cut)
-		obs_transition_set(ss->transition,
-				ss->files.array[ss->cur_item].source);
-
-	else if (valid && !to_null)
-		obs_transition_start(ss->transition,
-				OBS_TRANSITION_MODE_AUTO,
-				ss->tr_speed,
-				ss->files.array[ss->cur_item].source);
-
-	else
-		obs_transition_start(ss->transition,
-				OBS_TRANSITION_MODE_AUTO,
+	if (to_null) {
+		obs_transition_start(ss->transition, OBS_TRANSITION_MODE_AUTO,
 				ss->tr_speed,
 				NULL);
+		return;
+	}
+
+	if (!valid)
+		return;
+
+	obs_source_t *source = get_source(&ss->files.da,
+			ss->paths.array[ss->cur_item]);
+
+	if (!source)
+		return;
+
+	if ((ss->use_cut || ss->restart))
+		obs_transition_set(ss->transition, source);
+
+	else if (!to_null)
+		obs_transition_start(ss->transition,
+				OBS_TRANSITION_MODE_AUTO,
+				ss->tr_speed, source);
+
+	obs_source_release(source);
 }
 
 static void ss_update(void *data, obs_data_t *settings)
 {
 	DARRAY(struct image_file_data) new_files;
 	DARRAY(struct image_file_data) old_files;
+	DARRAY(char*) new_paths;
+	DARRAY(char*) old_paths;
 	obs_source_t *new_tr = NULL;
 	obs_source_t *old_tr = NULL;
 	struct slideshow *ss = data;
@@ -268,6 +327,7 @@ static void ss_update(void *data, obs_data_t *settings)
 	/* get settings data */
 
 	da_init(new_files);
+	da_init(new_paths);
 
 	behavior = obs_data_get_string(settings, S_BEHAVIOR);
 
@@ -292,7 +352,7 @@ static void ss_update(void *data, obs_data_t *settings)
 	else
 		tr_name = "fade_transition";
 
-	ss->randomize = obs_data_get_bool(settings, S_RANDOMIZE);
+	ss->shuffle = obs_data_get_bool(settings, S_RANDOMIZE);
 	ss->loop = obs_data_get_bool(settings, S_LOOP);
 	ss->hide = obs_data_get_bool(settings, S_HIDE);
 
@@ -333,17 +393,53 @@ static void ss_update(void *data, obs_data_t *settings)
 				dstr_copy(&dir_path, path);
 				dstr_cat_ch(&dir_path, '/');
 				dstr_cat(&dir_path, ent->d_name);
-				add_file(ss, &new_files.da, dir_path.array,
-						&cx, &cy);
+				add_path(&new_paths.da, dir_path.array);
 			}
 
 			dstr_free(&dir_path);
 			os_closedir(dir);
 		} else {
-			add_file(ss, &new_files.da, path, &cx, &cy);
+			add_path(&new_paths.da, path);
 		}
 
 		obs_data_release(item);
+	}
+
+	if (new_paths.num > 1 && ss->shuffle) {
+		DARRAY(char*) shuffled_files;
+		DARRAY(size_t) idxs;
+
+		da_init(shuffled_files);
+		da_init(idxs);
+		da_resize(idxs, new_paths.num);
+		da_reserve(shuffled_files, new_paths.num);
+
+		for (size_t i = 0; i < new_paths.num; i++) {
+			idxs.array[i] = i;
+		}
+		for (size_t i = idxs.num; i > 0; i--) {
+			size_t val = rand() % i;
+			size_t idx = idxs.array[val];
+			da_push_back(shuffled_files, &new_paths.array[idx]);
+			da_erase(idxs, val);
+		}
+
+		da_free(idxs);
+		new_paths.da = shuffled_files.da;
+	}
+
+	if (new_paths.num >= 5) {
+		add_file(ss, &new_files.da, new_paths.array[new_paths.num - 2],
+				&cx, &cy);
+		add_file(ss, &new_files.da, new_paths.array[new_paths.num - 1],
+				&cx, &cy);
+		add_file(ss, &new_files.da, new_paths.array[0], &cx, &cy);
+		add_file(ss, &new_files.da, new_paths.array[1], &cx, &cy);
+		add_file(ss, &new_files.da, new_paths.array[2], &cx, &cy);
+	} else {
+		for (size_t i = 0; i < new_paths.num; i++)
+			add_file(ss, &new_files.da, new_paths.array[i],
+					&cx, &cy);
 	}
 
 	/* ------------------------------------- */
@@ -353,6 +449,8 @@ static void ss_update(void *data, obs_data_t *settings)
 
 	old_files.da = ss->files.da;
 	ss->files.da = new_files.da;
+	old_paths.da = ss->paths.da;
+	ss->paths.da = new_paths.da;
 	if (new_tr) {
 		old_tr = ss->transition;
 		ss->transition = new_tr;
@@ -375,6 +473,7 @@ static void ss_update(void *data, obs_data_t *settings)
 	if (old_tr)
 		obs_source_release(old_tr);
 	free_files(&old_files.da);
+	free_paths(&old_paths.da);
 
 	/* ------------------------- */
 
@@ -420,19 +519,19 @@ static void ss_update(void *data, obs_data_t *settings)
 
 	ss->cx = cx;
 	ss->cy = cy;
-	ss->cur_item = 0;
 	ss->elapsed = 0.0f;
+	ss->cur_item = 0;
 	obs_transition_set_size(ss->transition, cx, cy);
 	obs_transition_set_alignment(ss->transition, OBS_ALIGN_CENTER);
 	obs_transition_set_scale_type(ss->transition,
 			OBS_TRANSITION_SCALE_ASPECT);
 
-	if (ss->randomize && ss->files.num)
-		ss->cur_item = random_file(ss);
 	if (new_tr)
 		obs_source_add_active_child(ss->source, new_tr);
 	if (ss->files.num)
 		do_transition(ss, false);
+
+	ss->restart = false;
 
 	obs_data_array_release(array);
 }
@@ -449,14 +548,8 @@ static void ss_restart(void *data)
 {
 	struct slideshow *ss = data;
 
-	ss->elapsed = 0.0f;
-	ss->cur_item = 0;
-
-	obs_transition_set(ss->transition,
-			ss->files.array[ss->cur_item].source);
-
-	ss->stop = false;
-	ss->paused = false;
+	ss->restart = true;
+	ss_update(ss, obs_source_get_settings(ss->source));
 }
 
 static void ss_stop(void *data)
@@ -475,11 +568,17 @@ static void ss_next_slide(void *data)
 {
 	struct slideshow *ss = data;
 
-	if (!ss->files.num)
+	if (!ss->paths.num)
 		return;
 
-	if (++ss->cur_item >= ss->files.num)
+	clear_buffer(ss, true);
+
+	if (++ss->cur_item >= ss->paths.num) {
 		ss->cur_item = 0;
+
+		if (ss->shuffle)
+			ss_update(ss, obs_source_get_settings(ss->source));
+	}
 
 	do_transition(ss, false);
 }
@@ -488,13 +587,19 @@ static void ss_previous_slide(void *data)
 {
 	struct slideshow *ss = data;
 
-	if (!ss->files.num)
+	if (!ss->paths.num)
 		return;
 
-	if (ss->cur_item == 0)
-		ss->cur_item = ss->files.num - 1;
-	else
+	clear_buffer(ss, false);
+
+	if (ss->cur_item == 0) {
+		ss->cur_item = ss->paths.num - 1;
+
+		if (ss->shuffle)
+			ss_update(ss, obs_source_get_settings(ss->source));
+	} else {
 		--ss->cur_item;
+	}
 
 	do_transition(ss, false);
 }
@@ -571,6 +676,7 @@ static void ss_destroy(void *data)
 
 	obs_source_release(ss->transition);
 	free_files(&ss->files.da);
+	free_paths(&ss->paths.da);
 	pthread_mutex_destroy(&ss->mutex);
 	bfree(ss);
 }
@@ -584,6 +690,7 @@ static void *ss_create(obs_data_t *settings, obs_source_t *source)
 	ss->manual = false;
 	ss->paused = false;
 	ss->stop = false;
+	ss->restart = false;
 
 	ss->play_pause_hotkey = obs_hotkey_register_source(source,
 			"SlideShow.PlayPause",
@@ -644,7 +751,7 @@ static void ss_video_tick(void *data, float seconds)
 	if (!ss->transition || !ss->slide_time)
 		return;
 
-	if (ss->restart_on_activate && !ss->randomize && ss->use_cut) {
+	if (ss->restart_on_activate && ss->use_cut) {
 		ss->elapsed = 0.0f;
 		ss->cur_item = 0;
 		do_transition(ss, false);
@@ -659,7 +766,7 @@ static void ss_video_tick(void *data, float seconds)
 
 	/* ----------------------------------------------------- */
 	/* fade to transparency when the file list becomes empty */
-	if (!ss->files.num) {
+	if (!ss->paths.num) {
 		obs_source_t* active_transition_source =
 			obs_transition_get_active_source(ss->transition);
 
@@ -676,7 +783,9 @@ static void ss_video_tick(void *data, float seconds)
 	if (ss->elapsed > ss->slide_time) {
 		ss->elapsed -= ss->slide_time;
 
-		if (!ss->loop && ss->cur_item == ss->files.num - 1) {
+		clear_buffer(ss, true);
+
+		if (!ss->loop && ss->cur_item == ss->paths.num - 1) {
 			if (ss->hide)
 				do_transition(ss, true);
 			else
@@ -685,20 +794,7 @@ static void ss_video_tick(void *data, float seconds)
 			return;
 		}
 
-		if (ss->randomize) {
-			size_t next = ss->cur_item;
-			if (ss->files.num > 1) {
-				while (next == ss->cur_item)
-					next = random_file(ss);
-			}
-			ss->cur_item = next;
-
-		} else if (++ss->cur_item >= ss->files.num) {
-			ss->cur_item = 0;
-		}
-
-		if (ss->files.num)
-			do_transition(ss, false);
+		ss_next_slide(ss);
 	}
 }
 
@@ -845,7 +941,7 @@ static obs_properties_t *ss_properties(void *data)
 			0, 3600000, 50);
 	obs_properties_add_bool(ppts, S_LOOP, T_LOOP);
 	obs_properties_add_bool(ppts, S_HIDE, T_HIDE);
-	obs_properties_add_bool(ppts, S_RANDOMIZE, T_RANDOMIZE);
+	obs_properties_add_bool(ppts, S_RANDOMIZE, T_SHUFFLE);
 
 	p = obs_properties_add_list(ppts, S_CUSTOM_SIZE, T_CUSTOM_SIZE,
 			OBS_COMBO_TYPE_EDITABLE, OBS_COMBO_FORMAT_STRING);
@@ -861,15 +957,16 @@ static obs_properties_t *ss_properties(void *data)
 
 	if (ss) {
 		pthread_mutex_lock(&ss->mutex);
-		if (ss->files.num) {
-			struct image_file_data *last = da_end(ss->files);
+		if (ss->paths.num) {
+			char *path_ = bstrdup(da_end(ss->paths));
 			const char *slash;
 
-			dstr_copy(&path, last->path);
+			dstr_copy(&path, path_);
 			dstr_replace(&path, "\\", "/");
 			slash = strrchr(path.array, '/');
 			if (slash)
 				dstr_resize(&path, slash - path.array + 1);
+			bfree(path_);
 		}
 		pthread_mutex_unlock(&ss->mutex);
 	}
