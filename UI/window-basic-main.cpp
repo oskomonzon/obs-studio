@@ -4176,6 +4176,15 @@ void OBSBasic::CreateSourcePopupMenu(int idx, bool preview)
 			popup.addSeparator();
 		}
 
+		QAction *resizeOutput = popup.addAction(
+				QTStr("ResizeOutputSizeOfSource"), this,
+				SLOT(ResizeOutputSizeOfSource()));
+
+		resizeOutput->setEnabled(!(ui->streamButton->isChecked() ||
+				ui->recordButton->isChecked() ||
+				(replayBufferButton &&
+				replayBufferButton->isChecked())));
+
 		popup.addMenu(AddScaleFilteringMenu(sceneItem));
 		popup.addSeparator();
 
@@ -6663,6 +6672,26 @@ void OBSBasic::on_stats_triggered()
 	statsDlg = new OBSBasicStats(nullptr);
 	statsDlg->show();
 	stats = statsDlg;
+}
+
+void OBSBasic::ResizeOutputSizeOfSource()
+{
+	if (ui->streamButton->isChecked() || ui->recordButton->isChecked() ||
+			(replayBufferButton && replayBufferButton->isChecked()))
+		return;
+
+	OBSSource source = obs_sceneitem_get_source(GetCurrentSceneItem());
+
+	int width = obs_source_get_width(source);
+	int height = obs_source_get_height(source);
+
+	config_set_uint(basicConfig, "Video", "BaseCX", width);
+	config_set_uint(basicConfig, "Video", "BaseCY", height);
+	config_set_uint(basicConfig, "Video", "OutputCX", width);
+	config_set_uint(basicConfig, "Video", "OutputCY", height);
+
+	ResetVideo();
+	on_actionFitToScreen_triggered();
 }
 
 ColorSelect::ColorSelect(QWidget *parent)
